@@ -1,0 +1,168 @@
+---
+title: "h"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(kernlab)
+set.seed(12345)
+data(spam)
+
+```
+
+```{r}
+head(spam)
+#View(spam)
+dim(spam)
+
+```
+```{r}
+sapply(spam, class)
+
+```
+
+```{r}
+percentage <- prop.table(table(spam$our)) * 100
+cbind(freq=table(spam$our), percentage=percentage)
+
+
+
+```
+
+```{r}
+hist(spam$make[1:10])
+hist(spam$address[1:10])
+
+
+```
+
+```{r}
+par(mfrow=c(1,4))
+  for(i in 1:4) {
+    boxplot(spam[,i], main=names(spam)[i])
+  }
+
+```
+
+```{r}
+spamPredictor <- function(spam){
+  vals = seq(0,11.1,by=0.1)
+  optimal_pos = 0
+  optimal_neg = 0
+  optimal_acc = 0
+  pos = 0
+  neg = 0
+  acc_loc = 0
+  ns_vals = double()
+  ns_sensitivity = double()
+  ns_specificity = double()
+  accuracy = double()
+  s_vals = double()
+  steps = double()
+  for(i in vals){
+    prediction <- ifelse(spam$your > i, "spam", "nonspam")
+    x <- table(prediction, spam$type)/length(spam$type)
+    ns <- x[1,1] / (x[1,1] + x[1,2])
+    ns_sens <- x[1,1] / (x[1,1] + x[2,1])
+    ns_spec <- x[2,2] / (x[1,2] + x[2,2])
+    ns_vals <- c(ns_vals, ns)
+    ns_sensitivity <-c(ns_sensitivity, ns_sens)
+    ns_specificity <-c(ns_specificity, ns_spec)
+    steps = c(steps, i)
+    if(ns > pos){
+      pos = ns
+      optimal_pos = i
+    }
+    s <- x[2,2] / (x[2,1] + x[2,2])
+    if(s > neg){
+      neg = s
+      optimal_neg = i
+    }
+    acc = (x[1,1] + x[2,2]) / sum(x)
+    if(acc > optimal_acc){
+      optimal_acc = acc
+      optimal_loc = i
+    }
+    s_vals <- c(s_vals, s)
+    accuracy <- c(accuracy,acc)
+  }
+  #old.par <- par(mfrow=c(2, 1))
+  #dev.new(width = 5, height = 4)
+  plot(steps, ns_vals, xlab = "Number of 'your' occurrences",type='l',
+       col=2, ylim = c(0,1), main = "Positive and negative predictive power", ylab="" )
+  lines(steps, s_vals, col=3)
+  lines(steps, accuracy, col=4)
+  legend(0.4,1,c("Positive predictive value", "Negative predictive value", "Accuracy"), col=c(2,3,4), lty=c(1,1), cex =0.7)
+  plot(1 - ns_specificity, ns_sensitivity, col="green", type='l', ylim = c(0,1),
+       xlab = "1 - specificity", ylab = "Sensitivity", main = "ROC")
+  points(steps, steps)
+  #lines(steps, ns_specificity, col="orange")
+  #par(old.par)
+  z = list("optimal_pos_loc" = optimal_pos, "optimal_pos_val" = pos, "optimal_neg_loc" = optimal_neg, "optimal_neg_val" = neg, "optimal_acc_loc" = optimal_loc, "optimal_acc_val" = 
+             optimal_acc)
+  return(z)
+}
+results = spamPredictor(spam)
+
+```
+
+
+```{r}
+results
+
+```
+
+```{r}
+library(caret)
+
+```
+
+```{r}
+
+inTrain <- createDataPartition(y=spam$type, p=0.6, list=FALSE)
+
+training <-spam[inTrain,]
+testing <- spam[-inTrain,]
+
+suppressWarnings(modelFit_glm <- train(type ~., data=training, method="glm"))
+modelFit_glm
+```
+
+```{r}
+predictions <- predict(modelFit_glm, newdata=testing)
+confusionMatrix(predictions, testing$type)
+
+
+```
+
+```{r}
+suppressWarnings(modelFit_svm <- train(type ~., data=training, method="svmLinear"))
+modelFit_svm
+
+
+```
+
+```{r}
+predictions <- predict(modelFit_svm, newdata=testing)
+confusionMatrix(predictions, testing$type)
+
+```
+
+```{r}
+capture.output(modelFit_nnet <- train(type ~., data=training, method="nnet"), file='NUL')
+
+
+```
+
+```{r}
+modelFit_nnet
+```
+
+```{r}
+predictions <- predict(modelFit_nnet, newdata=testing)
+confusionMatrix(predictions, testing$type)
+```
